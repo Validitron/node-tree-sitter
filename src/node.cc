@@ -22,6 +22,9 @@ static TSTreeCursor scratch_cursor = {nullptr, nullptr, {0, 0}};
 static inline void setup_transfer_buffer(Env env, uint32_t node_count) {
   uint32_t new_length = node_count * FIELD_COUNT_PER_NODE;
   if (new_length > transfer_buffer_length) {
+    if (transfer_buffer) {
+      free(transfer_buffer);
+    }
     transfer_buffer_length = new_length;
     transfer_buffer = static_cast<uint32_t *>(malloc(transfer_buffer_length * sizeof(uint32_t)));
     auto js_transfer_buffer = ArrayBuffer::New(
@@ -44,6 +47,7 @@ static inline bool operator<=(const TSPoint &left, const TSPoint &right) {
   return left.column <= right.column;
 }
 
+<<<<<<< HEAD
 static Value MarshalNodes(
   Env env,
   const Tree *tree,
@@ -52,6 +56,21 @@ static Value MarshalNodes(
 ) {
   Array result = Array::New(env);
   setup_transfer_buffer(env, node_count);
+=======
+static void MarshalNodes(const Nan::FunctionCallbackInfo<Value> &info,
+                         const Tree *tree, const TSNode *nodes, uint32_t node_count) {
+  info.GetReturnValue().Set(GetMarshalNodes(info, tree, nodes, node_count));
+}
+
+void MarshalNode(const Nan::FunctionCallbackInfo<Value> &info, const Tree *tree, TSNode node) {
+  info.GetReturnValue().Set(GetMarshalNode(info, tree, node));
+}
+
+Local<Value> GetMarshalNodes(const Nan::FunctionCallbackInfo<Value> &info,
+                         const Tree *tree, const TSNode *nodes, uint32_t node_count) {
+  auto result = Nan::New<Array>();
+  setup_transfer_buffer(node_count);
+>>>>>>> 65fb73392a742e1f49033a5e9aad6a1300c4cd76
   uint32_t *p = transfer_buffer;
   for (unsigned i = 0; i < node_count; i++) {
     TSNode node = nodes[i];
@@ -75,11 +94,15 @@ static Value MarshalNodes(
   return result;
 }
 
+<<<<<<< HEAD
 Value MarshalNode(
   Env env,
   const Tree *tree,
   TSNode node
 ) {
+=======
+Local<Value> GetMarshalNode(const Nan::FunctionCallbackInfo<Value> &info, const Tree *tree, TSNode node) {
+>>>>>>> 65fb73392a742e1f49033a5e9aad6a1300c4cd76
   const auto &cache_entry = tree->cached_nodes_.find(node.id);
   if (cache_entry == tree->cached_nodes_.end()) {
     setup_transfer_buffer(env, 1);
@@ -91,13 +114,21 @@ Value MarshalNode(
     *(p++) = node.context[2];
     *(p++) = node.context[3];
     if (node.id) {
+<<<<<<< HEAD
       return Number::New(env, ts_node_symbol(node));
     } else {
       return env.Null();
     }
   } else {
     return cache_entry->second->node.Value();
+=======
+      return Nan::New(ts_node_symbol(node));
+    }
+  } else {
+    return Nan::New(cache_entry->second->node);
+>>>>>>> 65fb73392a742e1f49033a5e9aad6a1300c4cd76
   }
+  return Nan::Null();
 }
 
 Value MarshalNullNode(Env env) {

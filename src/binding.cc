@@ -2,6 +2,7 @@
 #include "./language.h"
 #include "./node.h"
 #include "./parser.h"
+#include "./query.h"
 #include "./tree.h"
 #include "./tree_cursor.h"
 #include "./conversions.h"
@@ -12,10 +13,10 @@ using namespace Napi;
 
 Object Init(Env env, Object exports) {
   InitConversions(exports);
-  InitNode(exports);
-  InitLanguage(exports);
-  InitParser(exports);
-  InitTreeCursor(exports);
+  node_methods::Init(exports);
+  language_methods::Init(exports);
+  Parser::Init(exports);
+  Query::Init(exports);
   Tree::Init(exports);
   return exports;
 }

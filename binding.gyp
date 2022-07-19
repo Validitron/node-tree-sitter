@@ -16,8 +16,10 @@
         "src/logger.cc",
         "src/node.cc",
         "src/parser.cc",
+        "src/query.cc",
         "src/tree.cc",
         "src/tree_cursor.cc",
+        "src/util.cc",
       ],
       "include_dirs": [
         "vendor/tree-sitter/lib/include",
@@ -32,8 +34,14 @@
           },
         }]
       ],
+<<<<<<< HEAD
+=======
+      "cflags": [
+        "-std=c++17",
+      ],
+>>>>>>> 65fb73392a742e1f49033a5e9aad6a1300c4cd76
       'xcode_settings': {
-        'CLANG_CXX_LANGUAGE_STANDARD': 'c++11',
+        'CLANG_CXX_LANGUAGE_STANDARD': 'c++17',
       },
     },
     {
@@ -51,4 +59,8 @@
       ]
     }
   ],
+  'variables': { 'runtime%': 'node' },
+  'conditions': [
+      ['runtime=="electron"', { 'defines': ['NODE_RUNTIME_ELECTRON=1'] }],
+  ]
 }

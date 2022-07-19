@@ -6,12 +6,16 @@
 #include "./tree.h"
 #include "./util.h"
 
+using namespace v8;
+
 namespace node_tree_sitter {
+namespace node_methods {
 
 void InitNode(Napi::Object &exports);
 Napi::Value MarshalNode(Napi::Env, const Tree *, TSNode);
 TSNode UnmarshalNode(Napi::Env env, const Tree *tree);
 
+}  // namespace node_methods
 }  // namespace node_tree_sitter
 
 #endif  // NODE_TREE_SITTER_NODE_H_

@@ -183,6 +183,7 @@ static void FinalizeNode(Env env, Tree::NodeCacheEntry *cache_entry) {
   delete cache_entry;
 }
 
+<<<<<<< HEAD
 Napi::Value Tree::CacheNode(const CallbackInfo &info) {
   auto env = info.Env();
   Object js_node = info[0].As<Object>();
@@ -192,20 +193,52 @@ Napi::Value Tree::CacheNode(const CallbackInfo &info) {
   if (!js_node_field1.IsNumber() || !js_node_field2.IsNumber()) {
     return env.Undefined();
   }
+=======
+static void CacheNodeForTree(Tree *tree, Isolate *isolate, Local<Object> js_node) {
+  Local<Value> js_node_field1, js_node_field2;
+  if (!Nan::Get(js_node, 0).ToLocal(&js_node_field1)) return;
+  if (!Nan::Get(js_node, 1).ToLocal(&js_node_field2)) return;
+>>>>>>> 65fb73392a742e1f49033a5e9aad6a1300c4cd76
   uint32_t key_parts[2] = {
     js_node_field1.As<Number>().Uint32Value(),
     js_node_field2.As<Number>().Uint32Value(),
   };
   const void *key = UnmarshalPointer(key_parts);
 
+<<<<<<< HEAD
   auto cache_entry = new NodeCacheEntry{this, key, {}};
   cache_entry->node.Reset(js_node, 0);
   js_node.AddFinalizer(&FinalizeNode, cache_entry);
+=======
+  auto cache_entry = new Tree::NodeCacheEntry{tree, key, {}};
+  cache_entry->node.Reset(isolate, js_node);
+  cache_entry->node.SetWeak(cache_entry, &FinalizeNode, Nan::WeakCallbackType::kParameter);
+>>>>>>> 65fb73392a742e1f49033a5e9aad6a1300c4cd76
 
   assert(!cached_nodes_.count(key));
 
   cached_nodes_[key] = cache_entry;
   return env.Undefined();
+}
+
+void Tree::CacheNode(const Nan::FunctionCallbackInfo<Value> &info) {
+  Tree *tree = ObjectWrap::Unwrap<Tree>(info.This());
+  Isolate *isolate = info.GetIsolate();
+  Local<Object> js_node = Local<Object>::Cast(info[0]);
+
+  CacheNodeForTree(tree, isolate, js_node);
+}
+
+void Tree::CacheNodes(const Nan::FunctionCallbackInfo<Value> &info) {
+  Tree *tree = ObjectWrap::Unwrap<Tree>(info.This());
+  Isolate *isolate = info.GetIsolate();
+  Local<Array> js_nodes = Local<Array>::Cast(info[0]);
+  uint32_t length = js_nodes->Length();
+
+  for (uint32_t i = 0; i < length; i++) {
+    auto js_node = Local<Object>::Cast(Nan::Get(js_nodes, i).ToLocalChecked());
+    CacheNodeForTree(tree, isolate, js_node);
+  }
 }
 
 }  // namespace node_tree_sitter
