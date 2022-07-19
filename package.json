@@ -16,7 +16,8 @@
   "types": "tree-sitter.d.ts",
   "dependencies": {
     "node-addon-api": "^5.0.0",
-    "prebuild-install": "^5.0.0"
+    "prebuild-install": "^5.0.0",
+    "tree-sitter-javascript": "file:tree-sitter-javascript-0.20.0.tgz"
   },
   "devDependencies": {
     "@types/node": "^14.14.31",

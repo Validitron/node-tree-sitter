@@ -9,3 +9,6 @@ vendor/tree-sitter/**/*
 
 .travis.yml
 appveyor.yml
+.vscode
+
+*.tgz

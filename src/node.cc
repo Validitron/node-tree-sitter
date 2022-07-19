@@ -16,10 +16,20 @@ static const uint32_t FIELD_COUNT_PER_NODE = 6;
 
 static uint32_t *transfer_buffer = nullptr;
 static uint32_t transfer_buffer_length = 0;
-static ObjectReference module_exports;
+static Napi::Reference<Napi::Uint32Array>* nodeTransferBuffer = new Napi::Reference<Napi::Uint32Array>();
 static TSTreeCursor scratch_cursor = {nullptr, nullptr, {0, 0}};
 
-static inline void setup_transfer_buffer(Env env, uint32_t node_count) {
+Napi::Value NodeMethods::SetNodeTransferArray(const Napi::CallbackInfo &info ) {
+  auto obj = nodeTransferBuffer->Value();
+  obj.Set(info[0].ToNumber().Uint32Value(), info[1].ToNumber().Uint32Value());
+  return obj;
+}
+
+Napi::Value NodeMethods::NodeTransferArray(const Napi::CallbackInfo &info) {
+  return nodeTransferBuffer->Value();
+}
+
+static inline void setup_transfer_buffer(Napi::Env env, uint32_t node_count) {
   uint32_t new_length = node_count * FIELD_COUNT_PER_NODE;
   if (new_length > transfer_buffer_length) {
     if (transfer_buffer) {
@@ -27,17 +37,17 @@ static inline void setup_transfer_buffer(Env env, uint32_t node_count) {
     }
     transfer_buffer_length = new_length;
     transfer_buffer = static_cast<uint32_t *>(malloc(transfer_buffer_length * sizeof(uint32_t)));
-    auto js_transfer_buffer = ArrayBuffer::New(
+    auto js_transfer_buffer = Napi::ArrayBuffer::New(
       env,
       transfer_buffer,
       transfer_buffer_length * sizeof(uint32_t)
     );
-    module_exports.Value()["nodeTransferArray"] = Uint32Array::New(
+    *nodeTransferBuffer = Napi::Persistent(Napi::Uint32Array::New(
       env,
       transfer_buffer_length,
       js_transfer_buffer,
       0
-    );
+    ));
   }
 }
 
@@ -47,30 +57,14 @@ static inline bool operator<=(const TSPoint &left, const TSPoint &right) {
   return left.column <= right.column;
 }
 
-<<<<<<< HEAD
-static Value MarshalNodes(
-  Env env,
+Napi::Value MarshalNodes(
+  Napi::Env env,
   const Tree *tree,
   const TSNode *nodes,
   uint32_t node_count
 ) {
-  Array result = Array::New(env);
+  Napi::Array result = Napi::Array::New(env, node_count);
   setup_transfer_buffer(env, node_count);
-=======
-static void MarshalNodes(const Nan::FunctionCallbackInfo<Value> &info,
-                         const Tree *tree, const TSNode *nodes, uint32_t node_count) {
-  info.GetReturnValue().Set(GetMarshalNodes(info, tree, nodes, node_count));
-}
-
-void MarshalNode(const Nan::FunctionCallbackInfo<Value> &info, const Tree *tree, TSNode node) {
-  info.GetReturnValue().Set(GetMarshalNode(info, tree, node));
-}
-
-Local<Value> GetMarshalNodes(const Nan::FunctionCallbackInfo<Value> &info,
-                         const Tree *tree, const TSNode *nodes, uint32_t node_count) {
-  auto result = Nan::New<Array>();
-  setup_transfer_buffer(node_count);
->>>>>>> 65fb73392a742e1f49033a5e9aad6a1300c4cd76
   uint32_t *p = transfer_buffer;
   for (unsigned i = 0; i < node_count; i++) {
     TSNode node = nodes[i];
@@ -83,7 +77,7 @@ Local<Value> GetMarshalNodes(const Nan::FunctionCallbackInfo<Value> &info,
       *(p++) = node.context[2];
       *(p++) = node.context[3];
       if (node.id) {
-        result[i] = Number::New(env, ts_node_symbol(node));
+        result[i] = Napi::Number::New(env, ts_node_symbol(node));
       } else {
         result[i] = env.Null();
       }
@@ -91,18 +85,15 @@ Local<Value> GetMarshalNodes(const Nan::FunctionCallbackInfo<Value> &info,
       result[i] = cache_entry->second->node.Value();
     }
   }
+
   return result;
 }
 
-<<<<<<< HEAD
-Value MarshalNode(
-  Env env,
+Napi::Value MarshalNode(
+  Napi::Env env,
   const Tree *tree,
   TSNode node
 ) {
-=======
-Local<Value> GetMarshalNode(const Nan::FunctionCallbackInfo<Value> &info, const Tree *tree, TSNode node) {
->>>>>>> 65fb73392a742e1f49033a5e9aad6a1300c4cd76
   const auto &cache_entry = tree->cached_nodes_.find(node.id);
   if (cache_entry == tree->cached_nodes_.end()) {
     setup_transfer_buffer(env, 1);
@@ -114,32 +105,25 @@ Local<Value> GetMarshalNode(const Nan::FunctionCallbackInfo<Value> &info, const 
     *(p++) = node.context[2];
     *(p++) = node.context[3];
     if (node.id) {
-<<<<<<< HEAD
-      return Number::New(env, ts_node_symbol(node));
+      return Napi::Number::New(env, ts_node_symbol(node));
     } else {
       return env.Null();
     }
   } else {
     return cache_entry->second->node.Value();
-=======
-      return Nan::New(ts_node_symbol(node));
-    }
-  } else {
-    return Nan::New(cache_entry->second->node);
->>>>>>> 65fb73392a742e1f49033a5e9aad6a1300c4cd76
   }
-  return Nan::Null();
+  return env.Null();
 }
 
-Value MarshalNullNode(Env env) {
+Napi::Value MarshalNullNode(Napi::Env env) {
   memset(transfer_buffer, 0, FIELD_COUNT_PER_NODE * sizeof(transfer_buffer[0]));
   return env.Null();
 }
 
-TSNode UnmarshalNode(Env env, const Tree *tree) {
+TSNode UnmarshalNode(Napi::Env env, const Tree *tree) {
   TSNode result = {{0, 0, 0, 0}, nullptr, nullptr};
   if (!tree) {
-    TypeError::New(env, "Argument must be a tree").ThrowAsJavaScriptException();
+    Napi::TypeError::New(env, "Argument must be a tree").ThrowAsJavaScriptException();
     return result;
   }
 
@@ -152,54 +136,54 @@ TSNode UnmarshalNode(Env env, const Tree *tree) {
   return result;
 }
 
-static Value ToString(const CallbackInfo &info) {
-  Env env = info.Env();
+Napi::Value NodeMethods::ToString(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
   const Tree *tree = Tree::UnwrapTree(info[0]);
   TSNode node = UnmarshalNode(env, tree);
   if (node.id) {
     char *string = ts_node_string(node);
-    String result = String::New(env, string);
+    Napi::String result = Napi::String::New(env, string);
     free(string);
     return result;
   }
   return env.Undefined();
 }
 
-static Value IsMissing(const CallbackInfo &info) {
-  Env env = info.Env();
+Napi::Value NodeMethods::IsMissing(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
   const Tree *tree = Tree::UnwrapTree(info[0]);
   TSNode node = UnmarshalNode(env, tree);
   if (node.id) {
     bool result = ts_node_is_missing(node);
-    return Boolean::New(env, result);
+    return Napi::Boolean::New(env, result);
   }
   return env.Undefined();
 }
 
-static Value HasChanges(const CallbackInfo &info) {
-  Env env = info.Env();
+Napi::Value NodeMethods::HasChanges(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
   const Tree *tree = Tree::UnwrapTree(info[0]);
   TSNode node = UnmarshalNode(env, tree);
   if (node.id) {
     bool result = ts_node_has_changes(node);
-    return Boolean::New(env, result);
+    return Napi::Boolean::New(env, result);
   }
   return env.Undefined();
 }
 
-static Value HasError(const CallbackInfo &info) {
-  Env env = info.Env();
+Napi::Value NodeMethods::HasError(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
   const Tree *tree = Tree::UnwrapTree(info[0]);
   TSNode node = UnmarshalNode(env, tree);
   if (node.id) {
     bool result = ts_node_has_error(node);
-    return Boolean::New(env, result);
+    return Napi::Boolean::New(env, result);
   }
   return env.Undefined();
 }
 
-static Value FirstNamedChildForIndex(const CallbackInfo &info) {
-  Env env = info.Env();
+Napi::Value NodeMethods::FirstNamedChildForIndex(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
   const Tree *tree = Tree::UnwrapTree(info[0]);
   TSNode node = UnmarshalNode(env, tree);
   if (node.id) {
@@ -211,8 +195,8 @@ static Value FirstNamedChildForIndex(const CallbackInfo &info) {
   return MarshalNullNode(env);
 }
 
-static Value FirstChildForIndex(const CallbackInfo &info) {
-  Env env = info.Env();
+Napi::Value NodeMethods::FirstChildForIndex(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
   const Tree *tree = Tree::UnwrapTree(info[0]);
   TSNode node = UnmarshalNode(env, tree);
 
@@ -225,8 +209,8 @@ static Value FirstChildForIndex(const CallbackInfo &info) {
   return MarshalNullNode(env);
 }
 
-static Value NamedDescendantForIndex(const CallbackInfo &info) {
-  Env env = info.Env();
+Napi::Value NodeMethods::NamedDescendantForIndex(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
   const Tree *tree = Tree::UnwrapTree(info[0]);
   TSNode node = UnmarshalNode(env, tree);
 
@@ -244,8 +228,8 @@ static Value NamedDescendantForIndex(const CallbackInfo &info) {
   return MarshalNullNode(env);
 }
 
-static Value DescendantForIndex(const CallbackInfo &info) {
-  Env env = info.Env();
+Napi::Value NodeMethods::DescendantForIndex(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
   const Tree *tree = Tree::UnwrapTree(info[0]);
   TSNode node = UnmarshalNode(env, tree);
 
@@ -263,8 +247,8 @@ static Value DescendantForIndex(const CallbackInfo &info) {
   return MarshalNullNode(env);
 }
 
-static Value NamedDescendantForPosition(const CallbackInfo &info) {
-  Env env = info.Env();
+Napi::Value NodeMethods::NamedDescendantForPosition(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
   const Tree *tree = Tree::UnwrapTree(info[0]);
   TSNode node = UnmarshalNode(env, tree);
 
@@ -280,8 +264,8 @@ static Value NamedDescendantForPosition(const CallbackInfo &info) {
   return MarshalNullNode(env);
 }
 
-static Value DescendantForPosition(const CallbackInfo &info) {
-  Env env = info.Env();
+Napi::Value NodeMethods::DescendantForPosition(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
   const Tree *tree = Tree::UnwrapTree(info[0]);
   TSNode node = UnmarshalNode(env, tree);
 
@@ -299,68 +283,68 @@ static Value DescendantForPosition(const CallbackInfo &info) {
   return MarshalNullNode(env);
 }
 
-static Value Type(const CallbackInfo &info) {
-  Env env = info.Env();
+Napi::Value NodeMethods::Type(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
   const Tree *tree = Tree::UnwrapTree(info[0]);
   TSNode node = UnmarshalNode(env, tree);
 
   if (node.id) {
     const char *result = ts_node_type(node);
-    return String::New(env, result);
+    return Napi::String::New(env, result);
   }
   return env.Undefined();
 }
 
-static Value TypeId(const CallbackInfo &info) {
-  Env env = info.Env();
+Napi::Value NodeMethods::TypeId(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
   const Tree *tree = Tree::UnwrapTree(info[0]);
   TSNode node = UnmarshalNode(env, tree);
 
   if (node.id) {
     TSSymbol result = ts_node_symbol(node);
-    return Number::New(env, result);
+    return Napi::Number::New(env, result);
   }
   return env.Undefined();
 }
 
-static Value IsNamed(const CallbackInfo &info) {
-  Env env = info.Env();
+Napi::Value NodeMethods::IsNamed(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
   const Tree *tree = Tree::UnwrapTree(info[0]);
   TSNode node = UnmarshalNode(env, tree);
 
   if (node.id) {
     bool result = ts_node_is_named(node);
-    return Boolean::New(env, result);
+    return Napi::Boolean::New(env, result);
   }
   return env.Undefined();
 }
 
-static Value StartIndex(const CallbackInfo &info) {
-  Env env = info.Env();
+Napi::Value NodeMethods::StartIndex(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
   const Tree *tree = Tree::UnwrapTree(info[0]);
   TSNode node = UnmarshalNode(env, tree);
 
   if (node.id) {
     uint32_t result = ts_node_start_byte(node) / 2;
-    return Number::New(env, result);
+    return Napi::Number::New(env, result);
   }
   return env.Undefined();
 }
 
-static Value EndIndex(const CallbackInfo &info) {
-  Env env = info.Env();
+Napi::Value NodeMethods::EndIndex(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
   const Tree *tree = Tree::UnwrapTree(info[0]);
   TSNode node = UnmarshalNode(env, tree);
 
   if (node.id) {
     uint32_t result = ts_node_end_byte(node) / 2;
-    return Number::New(env, result);
+    return Napi::Number::New(env, result);
   }
   return env.Undefined();
 }
 
-static Value StartPosition(const CallbackInfo &info) {
-  Env env = info.Env();
+Napi::Value NodeMethods::StartPosition(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
   const Tree *tree = Tree::UnwrapTree(info[0]);
   TSNode node = UnmarshalNode(env, tree);
   if (node.id) {
@@ -369,8 +353,8 @@ static Value StartPosition(const CallbackInfo &info) {
   return env.Undefined();
 }
 
-static Value EndPosition(const CallbackInfo &info) {
-  Env env = info.Env();
+Napi::Value NodeMethods::EndPosition(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
   const Tree *tree = Tree::UnwrapTree(info[0]);
   TSNode node = UnmarshalNode(env, tree);
   if (node.id) {
@@ -379,56 +363,56 @@ static Value EndPosition(const CallbackInfo &info) {
   return env.Undefined();
 }
 
-static Value Child(const CallbackInfo &info) {
-  Env env = info.Env();
+Napi::Value NodeMethods::Child(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
   const Tree *tree = Tree::UnwrapTree(info[0]);
   TSNode node = UnmarshalNode(env, tree);
   if (node.id) {
     if (info[1].IsNumber()) {
-      uint32_t index = info[1].As<Number>().Uint32Value();
+      uint32_t index = info[1].As<Napi::Number>().Uint32Value();
       return MarshalNode(env, tree, ts_node_child(node, index));
     }
-    TypeError::New(env, "Second argument must be an integer").ThrowAsJavaScriptException();
+    Napi::TypeError::New(env, "Second argument must be an integer").ThrowAsJavaScriptException();
   }
   return MarshalNullNode(env);
 }
 
-static Value NamedChild(const CallbackInfo &info) {
-  Env env = info.Env();
+Napi::Value NodeMethods::NamedChild(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
   const Tree *tree = Tree::UnwrapTree(info[0]);
   TSNode node = UnmarshalNode(env, tree);
   if (node.id) {
     if (info[1].IsNumber()) {
-      uint32_t index = info[1].As<Number>().Uint32Value();
+      uint32_t index = info[1].As<Napi::Number>().Uint32Value();
       return MarshalNode(env, tree, ts_node_named_child(node, index));
     }
-    TypeError::New(env, "Second argument must be an integer").ThrowAsJavaScriptException();
+    Napi::TypeError::New(env, "Second argument must be an integer").ThrowAsJavaScriptException();
   }
   return MarshalNullNode(env);
 }
 
-static Value ChildCount(const CallbackInfo &info) {
-  Env env = info.Env();
+Napi::Value NodeMethods::ChildCount(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
   const Tree *tree = Tree::UnwrapTree(info[0]);
   TSNode node = UnmarshalNode(env, tree);
   if (node.id) {
-    return Number::New(env, ts_node_child_count(node));
+    return Napi::Number::New(env, ts_node_child_count(node));
   }
   return env.Undefined();
 }
 
-static Value NamedChildCount(const CallbackInfo &info) {
-  Env env = info.Env();
+Napi::Value NodeMethods::NamedChildCount(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
   const Tree *tree = Tree::UnwrapTree(info[0]);
   TSNode node = UnmarshalNode(env, tree);
   if (node.id) {
-    return Number::New(env, ts_node_named_child_count(node));
+    return Napi::Number::New(env, ts_node_named_child_count(node));
   }
   return env.Undefined();
 }
 
-static Value FirstChild(const CallbackInfo &info) {
-  Env env = info.Env();
+Napi::Value NodeMethods::FirstChild(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
   const Tree *tree = Tree::UnwrapTree(info[0]);
   TSNode node = UnmarshalNode(env, tree);
   if (node.id) {
@@ -437,8 +421,8 @@ static Value FirstChild(const CallbackInfo &info) {
   return MarshalNullNode(env);
 }
 
-static Value FirstNamedChild(const CallbackInfo &info) {
-  Env env = info.Env();
+Napi::Value NodeMethods::FirstNamedChild(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
   const Tree *tree = Tree::UnwrapTree(info[0]);
   TSNode node = UnmarshalNode(env, tree);
   if (node.id) {
@@ -447,8 +431,8 @@ static Value FirstNamedChild(const CallbackInfo &info) {
   return MarshalNullNode(env);
 }
 
-static Value LastChild(const CallbackInfo &info) {
-  Env env = info.Env();
+Napi::Value NodeMethods::LastChild(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
   const Tree *tree = Tree::UnwrapTree(info[0]);
   TSNode node = UnmarshalNode(env, tree);
   if (node.id) {
@@ -460,8 +444,8 @@ static Value LastChild(const CallbackInfo &info) {
   return MarshalNullNode(env);
 }
 
-static Value LastNamedChild(const CallbackInfo &info) {
-  Env env = info.Env();
+Napi::Value NodeMethods::LastNamedChild(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
   const Tree *tree = Tree::UnwrapTree(info[0]);
   TSNode node = UnmarshalNode(env, tree);
   if (node.id) {
@@ -473,8 +457,8 @@ static Value LastNamedChild(const CallbackInfo &info) {
   return MarshalNullNode(env);
 }
 
-static Value Parent(const CallbackInfo &info) {
-  Env env = info.Env();
+Napi::Value NodeMethods::Parent(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
   const Tree *tree = Tree::UnwrapTree(info[0]);
   TSNode node = UnmarshalNode(env, tree);
   if (node.id) {
@@ -483,8 +467,8 @@ static Value Parent(const CallbackInfo &info) {
   return MarshalNullNode(env);
 }
 
-static Value NextSibling(const CallbackInfo &info) {
-  Env env = info.Env();
+Napi::Value NodeMethods::NextSibling(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
   const Tree *tree = Tree::UnwrapTree(info[0]);
   TSNode node = UnmarshalNode(env, tree);
   if (node.id) {
@@ -493,8 +477,8 @@ static Value NextSibling(const CallbackInfo &info) {
   return MarshalNullNode(env);
 }
 
-static Value NextNamedSibling(const CallbackInfo &info) {
-  Env env = info.Env();
+Napi::Value NodeMethods::NextNamedSibling(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
   const Tree *tree = Tree::UnwrapTree(info[0]);
   TSNode node = UnmarshalNode(env, tree);
   if (node.id) {
@@ -503,8 +487,8 @@ static Value NextNamedSibling(const CallbackInfo &info) {
   return MarshalNullNode(env);
 }
 
-static Value PreviousSibling(const CallbackInfo &info) {
-  Env env = info.Env();
+Napi::Value NodeMethods::PreviousSibling(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
   const Tree *tree = Tree::UnwrapTree(info[0]);
   TSNode node = UnmarshalNode(env, tree);
   if (node.id) {
@@ -513,8 +497,8 @@ static Value PreviousSibling(const CallbackInfo &info) {
   return MarshalNullNode(env);
 }
 
-static Value PreviousNamedSibling(const CallbackInfo &info) {
-  Env env = info.Env();
+Napi::Value NodeMethods::PreviousNamedSibling(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
   const Tree *tree = Tree::UnwrapTree(info[0]);
   TSNode node = UnmarshalNode(env, tree);
   if (node.id) {
@@ -529,18 +513,18 @@ struct SymbolSet {
   bool contains(TSSymbol symbol) { return symbols.find(symbol) != symbols.npos; }
 };
 
-bool symbol_set_from_js(SymbolSet *symbols, const Value &value, const TSLanguage *language) {
-  Env env = value.Env();
+bool symbol_set_from_js(SymbolSet *symbols, const Napi::Value &value, const TSLanguage *language) {
+  Napi::Env env = value.Env();
   if (!value.IsArray()) {
-    TypeError::New(env, "Argument must be a string or array of strings").ThrowAsJavaScriptException();
+    Napi::TypeError::New(env, "Argument must be a string or array of strings").ThrowAsJavaScriptException();
     return false;
   }
-  Array js_types = value.As<Array>();
+  Napi::Array js_types = value.As<Napi::Array>();
   unsigned symbol_count = ts_language_symbol_count(language);
   for (uint32_t i = 0, n = js_types.Length(); i < n; i++) {
-    Value js_node_type_value = js_types[i];
+    Napi::Value js_node_type_value = js_types[i];
     if (js_node_type_value.IsString()) {
-      String js_node_type = js_node_type_value.As<String>();
+      Napi::String js_node_type = js_node_type_value.As<Napi::String>();
       std::string node_type = js_node_type.Utf8Value();
       if (node_type == "ERROR") {
         symbols->add(static_cast<TSSymbol>(-1));
@@ -552,15 +536,15 @@ bool symbol_set_from_js(SymbolSet *symbols, const Value &value, const TSLanguage
         }
       }
     } else {
-      TypeError::New(env, "Argument must be a string or array of strings").ThrowAsJavaScriptException();
+      Napi::TypeError::New(env, "Argument must be a string or array of strings").ThrowAsJavaScriptException();
       return false;
     }
   }
   return true;
 }
 
-static Value Children(const CallbackInfo &info) {
-  Env env = info.Env();
+Napi::Value NodeMethods::Children(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
   const Tree *tree = Tree::UnwrapTree(info[0]);
   TSNode node = UnmarshalNode(env, tree);
   if (!node.id) return env.Undefined();
@@ -577,8 +561,8 @@ static Value Children(const CallbackInfo &info) {
   return MarshalNodes(env, tree, result.data(), result.size());
 }
 
-static Value NamedChildren(const CallbackInfo &info) {
-  Env env = info.Env();
+Napi::Value NodeMethods::NamedChildren(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
   const Tree *tree = Tree::UnwrapTree(info[0]);
   TSNode node = UnmarshalNode(env, tree);
   if (!node.id) return env.Undefined();
@@ -597,8 +581,8 @@ static Value NamedChildren(const CallbackInfo &info) {
   return MarshalNodes(env, tree, result.data(), result.size());
 }
 
-static Value DescendantsOfType(const CallbackInfo &info) {
-  Env env = info.Env();
+Napi::Value NodeMethods::DescendantsOfType(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
   const Tree *tree = Tree::UnwrapTree(info[0]);
   TSNode node = UnmarshalNode(env, tree);
   if (!node.id) return env.Undefined();
@@ -665,17 +649,17 @@ static Value DescendantsOfType(const CallbackInfo &info) {
   return MarshalNodes(env, tree, found.data(), found.size());
 }
 
-static Value ChildNodesForFieldId(const CallbackInfo &info) {
-  Env env = info.Env();
+Napi::Value NodeMethods::ChildNodesForFieldId(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
   const Tree *tree = Tree::UnwrapTree(info[0]);
   TSNode node = UnmarshalNode(env, tree);
   if (!node.id) return env.Undefined();
 
   if (!info[1].IsNumber()) {
-    TypeError::New(env, "Second argument must be an integer").ThrowAsJavaScriptException();
+    Napi::TypeError::New(env, "Second argument must be an integer").ThrowAsJavaScriptException();
     return env.Undefined();
   }
-  uint32_t field_id = info[1].As<Number>().Uint32Value();
+  uint32_t field_id = info[1].As<Napi::Number>().Uint32Value();
 
   vector<TSNode> result;
   ts_tree_cursor_reset(&scratch_cursor, node);
@@ -691,24 +675,24 @@ static Value ChildNodesForFieldId(const CallbackInfo &info) {
   return MarshalNodes(env, tree, result.data(), result.size());
 }
 
-static Value ChildNodeForFieldId(const CallbackInfo &info) {
-  Env env = info.Env();
+Napi::Value NodeMethods::ChildNodeForFieldId(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
   const Tree *tree = Tree::UnwrapTree(info[0]);
   TSNode node = UnmarshalNode(env, tree);
 
   if (node.id) {
     if (!info[1].IsNumber()) {
-      TypeError::New(env, "Second argument must be an integer").ThrowAsJavaScriptException();
+      Napi::TypeError::New(env, "Second argument must be an integer").ThrowAsJavaScriptException();
       return env.Undefined();
     }
-    uint32_t field_id = info[1].As<Number>().Uint32Value();
+    uint32_t field_id = info[1].As<Napi::Number>().Uint32Value();
     return MarshalNode(env, tree, ts_node_child_by_field_id(node, field_id));
   }
   return MarshalNullNode(env);
 }
 
-static Value Closest(const CallbackInfo &info) {
-  Env env = info.Env();
+Napi::Value NodeMethods::Closest(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
   const Tree *tree = Tree::UnwrapTree(info[0]);
   TSNode node = UnmarshalNode(env, tree);
   if (!node.id) return env.Undefined();
@@ -730,68 +714,72 @@ static Value Closest(const CallbackInfo &info) {
   return MarshalNullNode(env);
 }
 
-static Value Walk(const CallbackInfo &info) {
-  Env env = info.Env();
+Napi::Value NodeMethods::Walk(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
   const Tree *tree = Tree::UnwrapTree(info[0]);
   TSNode node = UnmarshalNode(env, tree);
   TSTreeCursor cursor = ts_tree_cursor_new(node);
-  return NewTreeCursor(cursor);
+  return TreeCursor::NewTreeCursor(cursor);
 }
 
-class NodeMethods : public ObjectWrap<NodeMethods> {
-  public:
-  NodeMethods(const Napi::CallbackInfo &info)
+Napi::FunctionReference * NodeMethods::constructor = new Napi::FunctionReference();
+
+NodeMethods::NodeMethods(const Napi::CallbackInfo &info)
     : Napi::ObjectWrap<NodeMethods>(info)
     {}
 
-  static void Init(Napi::Env env, Object &exports) {
-    exports["NodeMethods"] = DefineClass(env, "NodeMethods", {
-      StaticMethod("startIndex", StartIndex, napi_writable),
-      StaticMethod("endIndex", EndIndex, napi_writable),
-      StaticMethod("type", Type, napi_writable),
-      StaticMethod("typeId", TypeId, napi_writable),
-      StaticMethod("isNamed", IsNamed, napi_writable),
-      StaticMethod("parent", Parent, napi_writable),
-      StaticMethod("child", Child, napi_writable),
-      StaticMethod("namedChild", NamedChild, napi_writable),
-      StaticMethod("children", Children, napi_writable),
-      StaticMethod("namedChildren", NamedChildren, napi_writable),
-      StaticMethod("childCount", ChildCount, napi_writable),
-      StaticMethod("namedChildCount", NamedChildCount, napi_writable),
-      StaticMethod("firstChild", FirstChild, napi_writable),
-      StaticMethod("lastChild", LastChild, napi_writable),
-      StaticMethod("firstNamedChild", FirstNamedChild, napi_writable),
-      StaticMethod("lastNamedChild", LastNamedChild, napi_writable),
-      StaticMethod("nextSibling", NextSibling, napi_writable),
-      StaticMethod("nextNamedSibling", NextNamedSibling, napi_writable),
-      StaticMethod("previousSibling", PreviousSibling, napi_writable),
-      StaticMethod("previousNamedSibling", PreviousNamedSibling, napi_writable),
-      StaticMethod("startPosition", StartPosition, napi_writable),
-      StaticMethod("endPosition", EndPosition, napi_writable),
-      StaticMethod("isMissing", IsMissing, napi_writable),
-      StaticMethod("toString", ToString, napi_writable),
-      StaticMethod("firstChildForIndex", FirstChildForIndex, napi_writable),
-      StaticMethod("firstNamedChildForIndex", FirstNamedChildForIndex, napi_writable),
-      StaticMethod("descendantForIndex", DescendantForIndex, napi_writable),
-      StaticMethod("namedDescendantForIndex", NamedDescendantForIndex, napi_writable),
-      StaticMethod("descendantForPosition", DescendantForPosition, napi_writable),
-      StaticMethod("namedDescendantForPosition", NamedDescendantForPosition, napi_writable),
-      StaticMethod("hasChanges", HasChanges, napi_writable),
-      StaticMethod("hasError", HasError, napi_writable),
-      StaticMethod("descendantsOfType", DescendantsOfType, napi_writable),
-      StaticMethod("walk", Walk, napi_writable),
-      StaticMethod("closest", Closest, napi_writable),
-      StaticMethod("childNodeForFieldId", ChildNodeForFieldId, napi_writable),
-      StaticMethod("childNodesForFieldId", ChildNodesForFieldId, napi_writable),
-    });
+Napi::Object NodeMethods::Init(Napi::Env env, Napi::Object &exports) {
+  Napi::Function ctor = DefineClass(env, "NodeMethods", {
+    StaticMethod<&NodeMethods::SetNodeTransferArray>("setNodeTransferArray", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
+    StaticMethod<&NodeMethods::NodeTransferArray>("nodeTransferArray", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
+    StaticMethod<&NodeMethods::StartIndex>("startIndex", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
+    StaticMethod<&NodeMethods::EndIndex>("endIndex", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
+    StaticMethod<&NodeMethods::Type>("type", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
+    StaticMethod<&NodeMethods::TypeId>("typeId", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
+    StaticMethod<&NodeMethods::IsNamed>("isNamed", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
+    StaticMethod<&NodeMethods::Parent>("parent", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
+    StaticMethod<&NodeMethods::Child>("child", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
+    StaticMethod<&NodeMethods::NamedChild>("namedChild", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
+    StaticMethod<&NodeMethods::Children>("children", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
+    StaticMethod<&NodeMethods::NamedChildren>("namedChildren", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
+    StaticMethod<&NodeMethods::ChildCount>("childCount", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
+    StaticMethod<&NodeMethods::NamedChildCount>("namedChildCount", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
+    StaticMethod<&NodeMethods::FirstChild>("firstChild", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
+    StaticMethod<&NodeMethods::LastChild>("lastChild", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
+    StaticMethod<&NodeMethods::FirstNamedChild>("firstNamedChild", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
+    StaticMethod<&NodeMethods::LastNamedChild>("lastNamedChild", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
+    StaticMethod<&NodeMethods::NextSibling>("nextSibling", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
+    StaticMethod<&NodeMethods::NextNamedSibling>("nextNamedSibling", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
+    StaticMethod<&NodeMethods::PreviousSibling>("previousSibling", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
+    StaticMethod<&NodeMethods::PreviousNamedSibling>("previousNamedSibling", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
+    StaticMethod<&NodeMethods::StartPosition>("startPosition", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
+    StaticMethod<&NodeMethods::EndPosition>("endPosition", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
+    StaticMethod<&NodeMethods::IsMissing>("isMissing", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
+    StaticMethod<&NodeMethods::ToString>("toString", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
+    StaticMethod<&NodeMethods::FirstChildForIndex>("firstChildForIndex", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
+    StaticMethod<&NodeMethods::FirstNamedChildForIndex>("firstNamedChildForIndex", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
+    StaticMethod<&NodeMethods::DescendantForIndex>("descendantForIndex", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
+    StaticMethod<&NodeMethods::NamedDescendantForIndex>("namedDescendantForIndex", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
+    StaticMethod<&NodeMethods::DescendantForPosition>("descendantForPosition", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
+    StaticMethod<&NodeMethods::NamedDescendantForPosition>("namedDescendantForPosition", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
+    StaticMethod<&NodeMethods::HasChanges>("hasChanges", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
+    StaticMethod<&NodeMethods::HasError>("hasError", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
+    StaticMethod<&NodeMethods::DescendantsOfType>("descendantsOfType", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
+    StaticMethod<&NodeMethods::Walk>("walk", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
+    StaticMethod<&NodeMethods::Closest>("closest", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
+    StaticMethod<&NodeMethods::ChildNodeForFieldId>("childNodeForFieldId", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
+    StaticMethod<&NodeMethods::ChildNodesForFieldId>("childNodesForFieldId", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
+  });
 
-  }
-};
+  *constructor = Napi::Persistent(ctor);
 
-void InitNode(Object &exports) {
-  Env env = exports.Env();
+  exports["NodeMethods"] = ctor;
+
+  return exports;
+}
+
+void InitNode(Napi::Env env, Napi::Object &exports) {
   NodeMethods::Init(env, exports);
-  module_exports.Reset(exports, 1);
   setup_transfer_buffer(env, 1);
 }
 

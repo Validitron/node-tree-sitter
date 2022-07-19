@@ -258,7 +258,7 @@ const languageSymbol = Symbol('parser.language');
 Parser.prototype.setLanguage = function(language) {
   setLanguage.call(this, language);
   this[languageSymbol] = language;
-  if (!language.nodeSubclasses) {
+  if (language.nodeSubclasses.length === 0) {
     initializeLanguageNodeClasses(language)
   }
   return this;
@@ -268,11 +268,14 @@ Parser.prototype.getLanguage = function(language) {
   return this[languageSymbol] || null;
 };
 
-Parser.prototype.parse = function(input, oldTree, {bufferSize, includedRanges}={}) {
+Parser.prototype.parse = function(input, oldTree, {bufferSize=32*1024, includedRanges}={}) {
   let getText, treeInput = input
   if (typeof input === 'string') {
     const inputString = input;
-    input = (offset, position) => inputString.slice(offset)
+    input = (offset, position) => {
+      const results = inputString.slice(offset, offset + (bufferSize / 2));
+      return results;
+    }
     getText = getTextFromString
   } else {
     getText = getTextFromFunction
@@ -512,6 +515,42 @@ Query.prototype._init = function() {
   this.refutedProperties = Object.freeze(refutedProperties);
 }
 
+function queryPredicates(predicates, captures) {
+  for (const step of predicates) {
+    let result = true;
+    if (step[0]) {
+      if (step[3]) {
+        let node1, node2
+        for (const c of captures) {
+          if (c.name === step[1]) node1 = c.node;
+          if (c.name === step[2]) node2 = c.node;
+        }
+        if (node1 !== undefined && node2 !== undefined) {
+          result = (node1.text === node2.text) !== step[4];
+        }
+      } else {
+        for (const c of captures) {
+          if (c.name === step[1]) {
+            result = (c.node.text === step[2]) !== step[4];
+            break;
+          }
+        }
+      }
+    } else {
+      for (const c of captures) {
+        if (c.name === step[1]) {
+          result = Boolean(step[2].test(c.node.text));
+          break;
+        }
+      }
+    }
+    if (!result) {
+      return false;
+    }
+  }
+  return true;
+}
+
 Query.prototype.matches = function(rootNode, startPosition = ZERO_POINT, endPosition = ZERO_POINT) {
   marshalNode(rootNode);
   const [returnedMatches, returnedNodes] = _matches.call(this, rootNode.tree,
@@ -535,18 +574,17 @@ Query.prototype.matches = function(rootNode, startPosition = ZERO_POINT, endPosi
       })
     }
 
-    if (this.predicates[patternIndex].every(p => p(captures))) {
+    if (queryPredicates(this.predicates()[patternIndex], captures)) {
       const result = {pattern: patternIndex, captures};
-      const setProperties = this.setProperties[patternIndex];
-      const assertedProperties = this.assertedProperties[patternIndex];
-      const refutedProperties = this.refutedProperties[patternIndex];
+      const setProperties = this.setProperties()[patternIndex];
+      const assertedProperties = this.assertedProperties()[patternIndex];
+      const refutedProperties = this.refutedProperties()[patternIndex];
       if (setProperties) result.setProperties = setProperties;
       if (assertedProperties) result.assertedProperties = assertedProperties;
       if (refutedProperties) result.refutedProperties = refutedProperties;
       results.push(result);
     }
   }
-
   return results;
 }
 
@@ -574,11 +612,11 @@ Query.prototype.captures = function(rootNode, startPosition = ZERO_POINT, endPos
       })
     }
 
-    if (this.predicates[patternIndex].every(p => p(captures))) {
+    if (queryPredicates(this.predicates()[patternIndex], captures)) {
       const result = captures[captureIndex];
-      const setProperties = this.setProperties[patternIndex];
-      const assertedProperties = this.assertedProperties[patternIndex];
-      const refutedProperties = this.refutedProperties[patternIndex];
+      const setProperties = this.setProperties()[patternIndex];
+      const assertedProperties = this.assertedProperties()[patternIndex];
+      const refutedProperties = this.refutedProperties()[patternIndex];
       if (setProperties) result.setProperties = setProperties;
       if (assertedProperties) result.assertedProperties = assertedProperties;
       if (refutedProperties) result.refutedProperties = refutedProperties;
@@ -615,7 +653,7 @@ function getTextFromTextBuffer ({startPosition, endPosition}) {
 const {pointTransferArray} = binding;
 
 const NODE_FIELD_COUNT = 6;
-const ERROR_TYPE_ID = 0xFFFF
+const ERROR_TYPE_ID = 0xFFFFFFFF
 
 function getID(buffer, offset) {
   const low  = BigInt(buffer[offset]);
@@ -636,7 +674,7 @@ function unmarshalNode(value, tree, offset = 0, cache = null) {
     ? SyntaxNode
     : tree.language.nodeSubclasses[nodeTypeId];
 
-  const {nodeTransferArray} = binding;
+  const nodeTransferArray = NodeMethods.nodeTransferArray();
   const id = getID(nodeTransferArray, offset)
   if (id === 0n) {
     return null
@@ -677,9 +715,8 @@ function unmarshalNodes(nodes, tree) {
 }
 
 function marshalNode(node) {
-  const {nodeTransferArray} = binding;
   for (let i = 0; i < NODE_FIELD_COUNT; i++) {
-    nodeTransferArray[i] = node[i];
+    NodeMethods.setNodeTransferArray(i, node[i]);
   }
 }
 
@@ -696,7 +733,7 @@ function initializeLanguageNodeClasses(language) {
   const nodeFieldNamesById = binding.getNodeFieldNamesById(language);
   const nodeTypeInfo = language.nodeTypeInfo || [];
 
-  const nodeSubclasses = [];
+  const { nodeSubclasses } = language;
   for (let id = 0, n = nodeTypeNamesById.length; id < n; id++) {
     nodeSubclasses[id] = SyntaxNode;
 
@@ -740,8 +777,6 @@ function initializeLanguageNodeClasses(language) {
     nodeSubclass.prototype.fields = Object.freeze(fieldNames.sort())
     nodeSubclasses[id] = nodeSubclass;
   }
-
-  language.nodeSubclasses = nodeSubclasses
 }
 
 function camelCase(name, upperCase) {

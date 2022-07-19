@@ -10,20 +10,20 @@ using std::string;
 
 void Logger::Log(void *payload, TSLogType type, const char *message_str) {
   Logger *debugger = (Logger *)payload;
-  Function fn = debugger->func.Value();
+  Napi::Function fn = debugger->func.Value();
   if (!fn.IsFunction()) return;
-  Env env = fn.Env();
+  Napi::Env env = fn.Env();
 
   string message(message_str);
   string param_sep = " ";
   size_t param_sep_pos = message.find(param_sep, 0);
 
-  String type_name = String::New(
+  Napi::String type_name = Napi::String::New(
     env,
     type == TSLogTypeParse ? "parse" : "lex"
   );
-  String name = String::New(env, message.substr(0, param_sep_pos));
-  Object params = Object::New(env);
+  Napi::String name = Napi::String::New(env, message.substr(0, param_sep_pos));
+  Napi::Object params = Napi::Object::New(env);
 
   while (param_sep_pos != string::npos) {
     size_t key_pos = param_sep_pos + param_sep.size();
@@ -36,18 +36,18 @@ void Logger::Log(void *payload, TSLogType type, const char *message_str) {
 
     string key = message.substr(key_pos, (value_sep_pos - key_pos));
     string value = message.substr(val_pos, (param_sep_pos - val_pos));
-    params[key] = String::New(env, value);
+    params[key] = Napi::String::New(env, value);
   }
 
   fn({ name, params, type_name });
   if (env.IsExceptionPending()) {
-    Error error = env.GetAndClearPendingException();
-    Value console = env.Global()["console"];
+    Napi::Error error = env.GetAndClearPendingException();
+    Napi::Value console = env.Global()["console"];
     if (console.IsObject()) {
-      Value console_error_fn = console.ToObject()["error"];
+      Napi::Value console_error_fn = console.ToObject()["error"];
       if (console_error_fn.IsFunction()) {
-        console_error_fn.As<Function>()({
-          String::New(env, "Error in debug callback:"),
+        console_error_fn.As<Napi::Function>()({
+          Napi::String::New(env, "Napi::Error in debug callback:"),
           error.Value()
         });
       }
@@ -55,7 +55,7 @@ void Logger::Log(void *payload, TSLogType type, const char *message_str) {
   }
 }
 
-TSLogger Logger::Make(Function func) {
+TSLogger Logger::Make(Napi::Function func) {
   TSLogger result;
   Logger *logger = new Logger();
   logger->func.Reset(func, 1);

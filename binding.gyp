@@ -23,8 +23,6 @@
       ],
       "include_dirs": [
         "vendor/tree-sitter/lib/include",
-        "vendor/superstring",
-        "<!(node -e \"require('nan')\")",
         "<!@(node -p \"require('node-addon-api').include\")",
       ],
       'conditions': [
@@ -34,12 +32,9 @@
           },
         }]
       ],
-<<<<<<< HEAD
-=======
       "cflags": [
         "-std=c++17",
       ],
->>>>>>> 65fb73392a742e1f49033a5e9aad6a1300c4cd76
       'xcode_settings': {
         'CLANG_CXX_LANGUAGE_STANDARD': 'c++17',
       },

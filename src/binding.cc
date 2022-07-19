@@ -11,13 +11,14 @@ namespace node_tree_sitter {
 
 using namespace Napi;
 
-Object Init(Env env, Object exports) {
+Napi::Object Init(Napi::Env env, Napi::Object exports) {
   InitConversions(exports);
-  node_methods::Init(exports);
-  language_methods::Init(exports);
+  InitNode(env, exports);
+  language_methods::InitLanguage(exports);
+  Tree::Init(exports);
+  TreeCursor::Init(exports);
   Parser::Init(exports);
   Query::Init(exports);
-  Tree::Init(exports);
   return exports;
 }
 

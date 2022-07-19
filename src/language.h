@@ -6,11 +6,13 @@
 #include "./tree.h"
 
 namespace node_tree_sitter {
+namespace language_methods {
 
 void InitLanguage(Napi::Object &);
 
 const TSLanguage *UnwrapLanguage(const Napi::Value &);
 
+}  // namespace language_methods
 }  // namespace node_tree_sitter
 
 #endif  // NODE_TREE_SITTER_LANGUAGE_H_
